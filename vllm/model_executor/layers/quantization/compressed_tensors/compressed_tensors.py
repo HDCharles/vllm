@@ -50,6 +50,8 @@ from vllm.model_executor.layers.quantization.compressed_tensors.schemes import (
     CompressedTensorsWNA8Int,
     CompressedTensorsWNA8O8Int,
     CompressedTensorsWNA16,
+    CompressedTensorsWNAFP4,
+    CompressedTensorsWNAFP8,
 )
 from vllm.model_executor.layers.quantization.compressed_tensors.transform.linear import (  # noqa: E501
     CompressedTensorsLinearTransformMethod,
@@ -718,6 +720,60 @@ class CompressedTensorsConfig(QuantizationConfig):
             and is_per_token_or_group_input
         )
 
+    @staticmethod
+    def _is_wNa_fp8(
+        weight_quant: QuantizationArgs,
+        input_quant: QuantizationArgs | None,
+        format: str | None,
+    ) -> bool:
+        """Weight N-bit INT with FP8 activation quant via Humming kernel."""
+        if input_quant is None:
+            return False
+        is_pack_format = format == CompressionFormat.pack_quantized.value
+        is_channel_group = weight_quant.strategy in (
+            QuantizationStrategy.CHANNEL.value,
+            QuantizationStrategy.GROUP.value,
+        )
+        is_static_int_weight = (
+            weight_quant.type == QuantizationType.INT and not weight_quant.dynamic
+        )
+        is_fp8_input = (
+            input_quant.type == QuantizationType.FLOAT and input_quant.num_bits == 8
+        )
+        return (
+            is_static_int_weight
+            and is_channel_group
+            and is_pack_format
+            and is_fp8_input
+        )
+
+    @staticmethod
+    def _is_wNa_fp4(
+        weight_quant: QuantizationArgs,
+        input_quant: QuantizationArgs | None,
+        format: str | None,
+    ) -> bool:
+        """Weight N-bit INT with FP4 activation quant via Humming kernel."""
+        if input_quant is None:
+            return False
+        is_pack_format = format == CompressionFormat.pack_quantized.value
+        is_channel_group = weight_quant.strategy in (
+            QuantizationStrategy.CHANNEL.value,
+            QuantizationStrategy.GROUP.value,
+        )
+        is_static_int_weight = (
+            weight_quant.type == QuantizationType.INT and not weight_quant.dynamic
+        )
+        is_fp4_input = (
+            input_quant.type == QuantizationType.FLOAT and input_quant.num_bits == 4
+        )
+        return (
+            is_static_int_weight
+            and is_channel_group
+            and is_pack_format
+            and is_fp4_input
+        )
+
     def _get_scheme_from_parts(
         self,
         weight_quant: QuantizationArgs,
@@ -787,6 +843,28 @@ class CompressedTensorsConfig(QuantizationConfig):
             and input_quant.num_bits == 4
         ):
             return CompressedTensorsWNA4Int(
+                num_bits=weight_quant.num_bits,
+                strategy=weight_quant.strategy,
+                group_size=weight_quant.group_size,
+                input_quant=input_quant,
+                output_quant=output_quant,
+                layer_name=layer_name,
+                quant_format=format,
+            )
+
+        if self._is_wNa_fp8(weight_quant, input_quant, format):
+            return CompressedTensorsWNAFP8(
+                num_bits=weight_quant.num_bits,
+                strategy=weight_quant.strategy,
+                group_size=weight_quant.group_size,
+                input_quant=input_quant,
+                output_quant=output_quant,
+                layer_name=layer_name,
+                quant_format=format,
+            )
+
+        if self._is_wNa_fp4(weight_quant, input_quant, format):
+            return CompressedTensorsWNAFP4(
                 num_bits=weight_quant.num_bits,
                 strategy=weight_quant.strategy,
                 group_size=weight_quant.group_size,

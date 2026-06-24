@@ -14,6 +14,8 @@ from .compressed_tensors_wNa4 import CompressedTensorsWNA4Int
 from .compressed_tensors_wNa8 import CompressedTensorsWNA8Int
 from .compressed_tensors_wNa8o8 import CompressedTensorsWNA8O8Int
 from .compressed_tensors_wNa16 import CompressedTensorsWNA16
+from .compressed_tensors_wNaFP4 import CompressedTensorsWNAFP4
+from .compressed_tensors_wNaFP8 import CompressedTensorsWNAFP8
 
 __all__ = [
     "CompressedTensorsScheme",
@@ -29,4 +31,6 @@ __all__ = [
     "CompressedTensorsW8A8Mxfp8",
     "CompressedTensorsWNA4Int",
     "CompressedTensorsWNA8Int",
+    "CompressedTensorsWNAFP4",
+    "CompressedTensorsWNAFP8",
 ]
