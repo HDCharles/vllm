@@ -3,11 +3,12 @@
 """Weight N-bit INT scheme with symmetric FP4 activation quant via Humming.
 
 Handles compressed-tensors pack-quantized INT weight checkpoints (2-8 bit)
-with FP4 (float4e2m1) symmetric input activation quantization (dynamic or
-static, per-tensor or per-group). Requires SM >= 89 (Ada / Hopper); on
-hardware below SM 120 the Humming kernel falls back to FP8 (float8e4m3)
-for the activation quantization. The activation quant config is passed to
-the Humming kernel which applies it natively.
+with FP4 (float4e2m1) symmetric dynamic per-group input activation
+quantization. Requires SM >= 89 (Ada / Hopper); on hardware below SM 120
+the Humming kernel falls back to FP8 (float8e4m3) per-token activations.
+Static activation quantization is not supported (no input_scale is loaded).
+The activation quant config is passed to the Humming kernel which applies
+it natively.
 """
 
 import math
