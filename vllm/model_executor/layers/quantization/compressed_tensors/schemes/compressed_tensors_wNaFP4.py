@@ -3,12 +3,11 @@
 """Weight N-bit INT scheme with symmetric FP4 activation quant via Humming.
 
 Handles compressed-tensors pack-quantized INT weight checkpoints (2-8 bit)
-with FP4 (float4e2m1) symmetric dynamic per-group input activation
-quantization. Requires SM >= 89 (Ada / Hopper); on hardware below SM 120
-the Humming kernel falls back to FP8 (float8e4m3) per-token activations.
-Static activation quantization is not supported (no input_scale is loaded).
-The activation quant config is passed to the Humming kernel which applies
-it natively.
+with FP4 (float4e2m1) symmetric dynamic per-token/per-group input
+activation quantization. Requires SM >= 89 (Ada / Hopper); on hardware
+below SM 120 the Humming kernel falls back to FP8 (float8e4m3) per-token
+activations. Static, per-tensor, and asymmetric activation quantization
+are not supported.
 """
 
 import math
@@ -16,7 +15,10 @@ from collections.abc import Callable
 from fractions import Fraction
 
 import torch
-from compressed_tensors.quantization import QuantizationArgs
+from compressed_tensors.quantization import (
+    QuantizationArgs,
+    QuantizationStrategy,
+)
 
 from vllm.logger import init_logger
 from vllm.model_executor.kernels.linear import (
@@ -74,6 +76,26 @@ class CompressedTensorsWNAFP4(CompressedTensorsScheme):
                 f"supported = {sorted(WNA16_SUPPORTED_TYPES_MAP)}"
             )
         self.quant_type = WNA16_SUPPORTED_TYPES_MAP[num_bits]
+
+        if input_quant is not None:
+            if not input_quant.symmetric:
+                raise ValueError(
+                    "WNAFP4 requires symmetric activation quantization, "
+                    f"got symmetric={input_quant.symmetric}"
+                )
+            if not input_quant.dynamic:
+                raise ValueError(
+                    "WNAFP4 requires dynamic activation quantization, "
+                    f"got dynamic={input_quant.dynamic}"
+                )
+            if input_quant.strategy not in (
+                QuantizationStrategy.TOKEN.value,
+                QuantizationStrategy.GROUP.value,
+            ):
+                raise ValueError(
+                    "WNAFP4 requires per-token or per-group activation "
+                    f"quantization, got strategy={input_quant.strategy}"
+                )
 
     @classmethod
     def get_min_capability(cls) -> int:
