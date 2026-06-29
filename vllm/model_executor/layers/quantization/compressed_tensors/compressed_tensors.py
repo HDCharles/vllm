@@ -833,8 +833,11 @@ class CompressedTensorsConfig(QuantizationConfig):
                 quant_format=format,
             )
 
-        if self._is_wNaM_fp(weight_quant, input_quant, format):
-            wNaM_fp_kwargs = dict(
+        if (
+            self._is_wNaM_fp(weight_quant, input_quant, format)
+            and input_quant.num_bits == 8
+        ):
+            return CompressedTensorsWNAFP8(
                 num_bits=weight_quant.num_bits,
                 strategy=weight_quant.strategy,
                 group_size=weight_quant.group_size,
@@ -843,10 +846,19 @@ class CompressedTensorsConfig(QuantizationConfig):
                 layer_name=layer_name,
                 quant_format=format,
             )
-            if input_quant.num_bits == 8:
-                return CompressedTensorsWNAFP8(**wNaM_fp_kwargs)
-            if input_quant.num_bits == 4:
-                return CompressedTensorsWNAFP4(**wNaM_fp_kwargs)
+        if (
+            self._is_wNaM_fp(weight_quant, input_quant, format)
+            and input_quant.num_bits == 4
+        ):
+            return CompressedTensorsWNAFP4(
+                num_bits=weight_quant.num_bits,
+                strategy=weight_quant.strategy,
+                group_size=weight_quant.group_size,
+                input_quant=input_quant,
+                output_quant=output_quant,
+                layer_name=layer_name,
+                quant_format=format,
+            )
 
         if self._is_wNa16_group_channel(weight_quant, input_quant) and (
             format == CompressionFormat.pack_quantized.value
