@@ -740,6 +740,8 @@ class FlashModel(nn.Module):
                 if isinstance(self.layers[layer_id], PPMissingLayer):
                     continue
                 self_attn = self.layers[layer_id].self_attn[i]
+                if not hasattr(self_attn.kv_b_proj, "weight"):
+                    continue
                 if hasattr(
                     self.quant_config, "weight_block_size"
                 ) and self_attn.kv_b_proj.weight.dtype in (
