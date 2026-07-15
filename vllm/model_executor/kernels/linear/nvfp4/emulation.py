@@ -36,9 +36,10 @@ class EmulationNvFp4LinearKernel(NvFp4LinearKernel):
         x: torch.Tensor,
         bias: torch.Tensor | None = None,
     ) -> torch.Tensor:
+        input_global_scale = getattr(layer, 'input_global_scale_inv', None)
         out = run_nvfp4_emulations(
             x=x,
-            input_global_scale=layer.input_global_scale_inv,
+            input_global_scale=input_global_scale,
             weight=layer.weight,
             weight_scale_swizzled=layer.weight_scale,
             weight_global_scale=layer.weight_global_scale,

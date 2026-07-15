@@ -123,6 +123,10 @@ class MultiHeadLatentAttentionWrapper(PluggableLayer):
         hidden_states: torch.Tensor,
         llama_4_scaling: torch.Tensor | None = None,
     ) -> torch.Tensor:
+        import os
+        _mla_dbg = (os.environ.get("MLA_DEBUG")
+                    and "layers.0.self_attn.0" in self.prefix
+                    and hidden_states.shape[0] > 1)
         q_c = None
         kv_lora = None
 
@@ -166,6 +170,33 @@ class MultiHeadLatentAttentionWrapper(PluggableLayer):
                 positions, q[..., self.qk_nope_head_dim :], k_pe
             )
 
+        if _mla_dbg:
+            from vllm.distributed import get_tp_group
+            if get_tp_group().rank_in_group == 0:
+                torch.save({
+                    'hidden_states': hidden_states.detach().cpu(),
+                    'q': q.detach().cpu(),
+                    'kv_c_normed': kv_c_normed.detach().cpu(),
+                    'k_pe': k_pe.detach().cpu(),
+                    'positions': positions.detach().cpu(),
+                    'scale': self.mla_attn.scale,
+                    'num_heads': self.num_heads,
+                    'qk_nope_head_dim': self.qk_nope_head_dim,
+                    'qk_rope_head_dim': self.qk_rope_head_dim,
+                    'v_head_dim': self.v_head_dim,
+                    'kv_lora_rank': self.kv_lora_rank,
+                }, '/tmp/mla_debug_inputs.pt')
+                if hasattr(self.mla_attn, 'W_UK_T'):
+                    torch.save(self.mla_attn.W_UK_T.detach().cpu(),
+                               '/tmp/mla_debug_W_UK_T.pt')
+                if hasattr(self.mla_attn, 'W_UV'):
+                    torch.save(self.mla_attn.W_UV.detach().cpu(),
+                               '/tmp/mla_debug_W_UV.pt')
+                kv_w = self.kv_b_proj
+                if hasattr(kv_w, 'weight'):
+                    torch.save(kv_w.weight.detach().cpu(),
+                               '/tmp/mla_debug_kv_b_proj_weight.pt')
+
         if self.indexer and self.is_sparse and not self.skip_topk:
             self.indexer(hidden_states, q_c, positions, self.indexer_rope_emb)
 
@@ -178,5 +209,10 @@ class MultiHeadLatentAttentionWrapper(PluggableLayer):
             k_pe,
             output_shape=(hidden_states.shape[0], self.num_heads * self.v_head_dim),
         )
+
+        if _mla_dbg:
+            from vllm.distributed import get_tp_group
+            if get_tp_group().rank_in_group == 0:
+                torch.save(attn_out.detach().cpu(), '/tmp/mla_debug_attn_out.pt')
 
         return self.o_proj(attn_out)[0]

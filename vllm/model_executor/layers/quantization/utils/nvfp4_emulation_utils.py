@@ -468,7 +468,7 @@ def ref_nvfp4_quant_dequant(
 
 def run_nvfp4_emulations(
     x: torch.Tensor,
-    input_global_scale: torch.Tensor,
+    input_global_scale: torch.Tensor | None,
     weight: torch.Tensor,
     weight_scale_swizzled: torch.Tensor,
     weight_global_scale: torch.Tensor,
@@ -477,7 +477,10 @@ def run_nvfp4_emulations(
     output_dtype = x.dtype
     group_size = 16
 
-    x_dq = ref_nvfp4_quant_dequant(x, input_global_scale, block_size=group_size)
+    if input_global_scale is not None:
+        x_dq = ref_nvfp4_quant_dequant(x, input_global_scale, block_size=group_size)
+    else:
+        x_dq = x
 
     # dequantize weight
     w_fp4 = weight.data.view(torch.uint8)

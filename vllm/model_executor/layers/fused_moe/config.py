@@ -807,8 +807,8 @@ def ocp_mx_moe_quant_config(
 def nvfp4_moe_quant_config(
     g1_alphas: torch.Tensor,
     g2_alphas: torch.Tensor,
-    a1_gscale: torch.Tensor,
-    a2_gscale: torch.Tensor,
+    a1_gscale: torch.Tensor | None,
+    a2_gscale: torch.Tensor | None,
     w1_scale: torch.Tensor,
     w2_scale: torch.Tensor,
     w1_bias: torch.Tensor | None = None,

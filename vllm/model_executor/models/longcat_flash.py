@@ -33,6 +33,7 @@
 # SOFTWARE.
 """Inference-only Flash model compatible with HuggingFace weights."""
 
+import os
 import typing
 from collections.abc import Callable, Iterable
 from itertools import islice
@@ -44,7 +45,6 @@ from transformers import PretrainedConfig
 from vllm.compilation.decorators import support_torch_compile
 from vllm.config import CacheConfig, VllmConfig
 from vllm.distributed import get_pp_group
-from vllm.logger import init_logger
 from vllm.model_executor.layers.activation import SiluAndMul
 from vllm.model_executor.layers.fused_moe import (
     FusedMoE,
@@ -59,6 +59,9 @@ from vllm.model_executor.layers.linear import (
 from vllm.model_executor.layers.logits_processor import LogitsProcessor
 from vllm.model_executor.layers.quantization import QuantizationConfig
 from vllm.model_executor.layers.quantization.utils.int8_utils import block_dequant
+from vllm.model_executor.layers.quantization.utils.nvfp4_emulation_utils import (
+    dequantize_to_dtype,
+)
 from vllm.model_executor.layers.vocab_parallel_embedding import (
     ParallelLMHead,
     VocabParallelEmbedding,
@@ -82,7 +85,6 @@ from .utils import (
     maybe_prefix,
 )
 
-logger = init_logger(__name__)
 
 
 class FlashConfig(PretrainedConfig):
@@ -197,6 +199,13 @@ class FlashConfig(PretrainedConfig):
         else:
             self.moe_intermediate_size = self.intermediate_size
 
+        if os.environ.get("DISABLE_SPARSE_MLA"):
+            for attr in ("index_topk", "index_head_dim", "index_init_tokens",
+                         "index_k_norm_type", "index_local_tokens",
+                         "index_n_heads", "cli_factor"):
+                if hasattr(self, attr):
+                    delattr(self, attr)
+
 
 class FlashMLP(nn.Module):
     """Flash MLP layer."""
@@ -288,6 +297,7 @@ class LongcatMoe(nn.Module):
         enable_eplb: bool = False,
     ):
         super().__init__()
+        self._prefix = prefix
         self.hidden_size = hidden_size
         # Gate always runs at half / full precision for now.
         self.router_params_dtype = params_dtype
@@ -322,7 +332,6 @@ class LongcatMoe(nn.Module):
         num_tokens, hidden_dim = hidden_states.shape
         hidden_states = hidden_states.view(-1, hidden_dim)
 
-        # Align to FusedMoE padded hidden size to avoid dim mismatch
         padded_hidden = self.experts.moe_config.hidden_dim
         if hidden_dim < padded_hidden:
             hidden_states_padded = torch.nn.functional.pad(
@@ -338,15 +347,11 @@ class LongcatMoe(nn.Module):
             hidden_states_padded.to(self.router_params_dtype)
         )
 
-        # FusedMoE handles routing memoization and zero expert computation
-        # internally. Pass full router_logits (including zero experts) so that
-        # zero experts can be properly identified in routing.
         final_hidden_states = self.experts(
             hidden_states=hidden_states_padded,
-            router_logits=router_logits_full,  # Full logits (includes zero experts)
+            router_logits=router_logits_full,
         )
 
-        # Crop back to original hidden dimension if padded earlier
         if padded_hidden != hidden_dim:
             final_hidden_states = final_hidden_states[..., :hidden_dim]
 
@@ -476,26 +481,22 @@ class FlashDecoderLayer(nn.Module):
             hidden_states, residual
         )
 
-        # moe
-        hidden_states_copy = hidden_states.clone()
-        moe_hidden_states = self.mlp(hidden_states_copy)
+        moe_hidden_states = self.mlp(hidden_states)
 
-        # first mlp
         hidden_states = self.mlps[0](hidden_states)
 
         hidden_states, residual = self.input_layernorm[1](hidden_states, residual)
 
-        # second_attn
         hidden_states = self.self_attn[1](
             positions=positions,
             hidden_states=hidden_states,
             llama_4_scaling=None,
         )
+
         hidden_states, residual = self.post_attention_layernorm[1](
             hidden_states, residual
         )
 
-        # second_mlp
         hidden_states = self.mlps[1](hidden_states)
 
         hidden_states = hidden_states + moe_hidden_states
@@ -577,7 +578,7 @@ class FlashModel(nn.Module):
             hidden_states = intermediate_tensors["hidden_states"]
             residual = intermediate_tensors["residual"]
 
-        for layer in islice(self.layers, self.start_layer, self.end_layer):
+        for i, layer in enumerate(islice(self.layers, self.start_layer, self.end_layer)):
             hidden_states, residual = layer(
                 positions,
                 hidden_states,
@@ -740,11 +741,17 @@ class FlashModel(nn.Module):
                 if isinstance(self.layers[layer_id], PPMissingLayer):
                     continue
                 self_attn = self.layers[layer_id].self_attn[i]
-                if not hasattr(self_attn.kv_b_proj, "weight"):
+                kv_b_weight_attr = (
+                    "weight" if hasattr(self_attn.kv_b_proj, "weight")
+                    else "weight_packed" if hasattr(self_attn.kv_b_proj, "weight_packed")
+                    else None
+                )
+                if kv_b_weight_attr is None:
                     continue
+                kv_b_weight = getattr(self_attn.kv_b_proj, kv_b_weight_attr)
                 if hasattr(
                     self.quant_config, "weight_block_size"
-                ) and self_attn.kv_b_proj.weight.dtype in (
+                ) and kv_b_weight.dtype in (
                     torch.float8_e4m3fn,
                     torch.float8_e4m3fnuz,
                 ):
@@ -753,18 +760,35 @@ class FlashModel(nn.Module):
                         assert hasattr(self_attn.kv_b_proj, "weight_scale_inv")
                         dtype = torch.get_default_dtype()
                         w = block_dequant(
-                            self_attn.kv_b_proj.weight,
+                            kv_b_weight,
                             self_attn.kv_b_proj.weight_scale_inv,
                             weight_block_size,
                         ).to(dtype)
+                elif (
+                    kv_b_weight.dtype == torch.uint8
+                    and hasattr(self_attn.kv_b_proj, "weight_scale")
+                    and hasattr(self_attn.kv_b_proj, "weight_global_scale")
+                ):
+                    dtype = torch.get_default_dtype()
+                    gs = self_attn.kv_b_proj.weight_global_scale
+                    gs_recip = (1.0 / gs.max().to(torch.float32))
+                    w = dequantize_to_dtype(
+                        kv_b_weight,
+                        self_attn.kv_b_proj.weight_scale,
+                        gs_recip,
+                        dtype,
+                        block_size=16,
+                        swizzle=False,
+                    )
                 else:
-                    w = self_attn.kv_b_proj.weight
+                    w = kv_b_weight
 
                 w_kc, w_vc = w.unflatten(
                     0, (-1, self_attn.qk_nope_head_dim + self_attn.v_head_dim)
                 ).split([self_attn.qk_nope_head_dim, self_attn.v_head_dim], dim=1)
                 self_attn.w_kc = w_kc.transpose(1, 2).contiguous().transpose(1, 2)
                 self_attn.w_vc = w_vc.contiguous().transpose(1, 2)
+
         return loaded_params
 
 

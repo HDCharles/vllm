@@ -407,7 +407,9 @@ class Nvfp4QuantizationEmulationTritonExperts(TritonExperts):
         weight_key: QuantKey | None,
         activation_key: QuantKey | None,
     ) -> bool:
-        return (weight_key, activation_key) == (kNvfp4Static, kNvfp4Dynamic)
+        if weight_key != kNvfp4Static:
+            return False
+        return activation_key in (kNvfp4Dynamic, None)
 
     def apply(
         self,
@@ -486,14 +488,17 @@ class Nvfp4QuantizationEmulationTritonExperts(TritonExperts):
             expert_map,
         )
 
-        # Activation NVFP4 QDQ.
-        hidden_states_qdq, _ = moe_kernel_quantize_input(
-            A=hidden_states,
-            A_scale=self.quant_config.a1_gscale,
-            quant_dtype="nvfp4",
-            per_act_token_quant=False,
-            quantization_emulation=True,
-        )
+        # Activation NVFP4 QDQ (skip for W4A16).
+        if self.quant_config.a1_gscale is not None:
+            hidden_states_qdq, _ = moe_kernel_quantize_input(
+                A=hidden_states,
+                A_scale=self.quant_config.a1_gscale,
+                quant_dtype="nvfp4",
+                per_act_token_quant=False,
+                quantization_emulation=True,
+            )
+        else:
+            hidden_states_qdq = hidden_states
 
         # w13: fused weight dequant + GEMM.
         invoke_fused_moe_nvfp4_emulation_kernel(
@@ -517,14 +522,17 @@ class Nvfp4QuantizationEmulationTritonExperts(TritonExperts):
             activation, intermediate_cache2, intermediate_cache1.view(-1, N)
         )
 
-        # Activation NVFP4 QDQ.
-        intermediate_cache2_qdq, _ = moe_kernel_quantize_input(
-            A=intermediate_cache2,
-            A_scale=self.quant_config.a2_gscale,
-            quant_dtype="nvfp4",
-            per_act_token_quant=False,
-            quantization_emulation=True,
-        )
+        # Activation NVFP4 QDQ (skip for W4A16).
+        if self.quant_config.a2_gscale is not None:
+            intermediate_cache2_qdq, _ = moe_kernel_quantize_input(
+                A=intermediate_cache2,
+                A_scale=self.quant_config.a2_gscale,
+                quant_dtype="nvfp4",
+                per_act_token_quant=False,
+                quantization_emulation=True,
+            )
+        else:
+            intermediate_cache2_qdq = intermediate_cache2
 
         # w2: fused weight dequant + GEMM.
         invoke_fused_moe_nvfp4_emulation_kernel(

@@ -920,8 +920,8 @@ def init_nvfp4_linear_kernel(use_a16: bool = False) -> NvFp4LinearKernel:
             )
             force_kernel = EmulationNvFp4LinearKernel
     elif linear_backend == "auto" and use_a16:
-        # Force a16 (Marlin) when running weight-only quantization.
-        force_kernel = MarlinNvFp4LinearKernel
+        # Use emulation for W4A16 to avoid Marlin FP4 dequant issues.
+        force_kernel = EmulationNvFp4LinearKernel
 
     if force_kernel is not None:
         is_supported, reason = force_kernel.is_supported()
