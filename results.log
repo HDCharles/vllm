@@ -1,0 +1,109 @@
+Command: run python benchmarks/kernels/benchmark_fp8_linear.py --shape 43008 5376 --shape 5376 21504 --shape 16384 5376 --shape 5376 8192
+Reserved 1 GPU(s): [1] for command execution
+INFO 07-27 16:39:35 [scheduler.py:242] Chunked prefill is enabled with max_num_batched_tokens=2048.
+INFO 07-27 16:39:35 [vllm.py:1114] Asynchronous scheduling is enabled.
+INFO 07-27 16:39:35 [kernel.py:303] Final IR op priority after setting platform defaults: IrOpPriorityConfig(rms_norm=['native'], fused_add_rms_norm=['native'])
+custom, N=43008 K=5376, BF16 vs FP8 linear TFLOP/s:
+INFO 07-27 16:39:36 [__init__.py:635] Selected CutlassFP8ScaledMMLinearKernel for FP8Linear
+INFO 07-27 16:39:36 [deep_gemm.py:175] deep_gemm not found in site-packages, trying vendored vllm.third_party.deep_gemm
+INFO 07-27 16:39:36 [deep_gemm.py:202] DeepGEMM PDL enabled on vllm.third_party.deep_gemm.
+INFO 07-27 16:39:36 [deep_gemm.py:120] DeepGEMM E8M0 enabled on current platform.
+  fp8-per-channel: CutlassFP8ScaledMMLinearKernel
+INFO 07-27 16:39:38 [__init__.py:604] Selected DeepGemmFp8BlockScaledMMKernel for FP8Linear
+  fp8-per-block: DeepGemmFp8BlockScaledMMKernel
+INFO 07-27 16:39:39 [__init__.py:978] Using FlashInferCuteDslNvFp4LinearKernel for NVFP4 GEMM
+  nvfp4: FlashInferCuteDslNvFp4LinearKernel
+BF16 vs dispatched FP8 linear kernels:
+    batch_size  torch-bf16 (TFLOP/s (larger is better))  fp8-per-channel (TFLOP/s (larger is better))  fp8-per-block (TFLOP/s (larger is better))  nvfp4 (TFLOP/s (larger is better))
+0          1.0                                 6.376763                                     11.254017                                   11.009862                           18.354879
+1         16.0                               109.046011                                    168.847938                                  165.536058                          285.741021
+2         64.0                               378.451979                                    623.983589                                  625.829802                         1034.211929
+3        128.0                               725.687431                                   1092.334608                                  992.854572                         1898.632322
+4        256.0                               939.910807                                   1638.683047                                 1313.554865                         2912.579263
+5        512.0                              1122.345167                                   1746.241150                                 1690.853495                         3504.289791
+6       1024.0                              1284.753139                                   2093.277802                                 2054.754917                         3679.654877
+7       2048.0                              1402.785383                                   2365.384392                                 2063.721866                         3921.790076
+8       4096.0                              1375.310784                                   2243.428924                                 2177.802160                         4262.748981
+9       8192.0                              1377.466035                                   2161.655739                                 2389.002831                         4282.068271
+10     16384.0                              1404.856257                                   1851.173279                                 2384.702955                         3898.451047
+custom, N=5376 K=21504, BF16 vs FP8 linear TFLOP/s:
+  fp8-per-channel: CutlassFP8ScaledMMLinearKernel
+  fp8-per-block: DeepGemmFp8BlockScaledMMKernel
+  nvfp4: FlashInferCuteDslNvFp4LinearKernel
+BF16 vs dispatched FP8 linear kernels:
+    batch_size  torch-bf16 (TFLOP/s (larger is better))  fp8-per-channel (TFLOP/s (larger is better))  fp8-per-block (TFLOP/s (larger is better))  nvfp4 (TFLOP/s (larger is better))
+0          1.0                                 5.512835                                      6.759835                                    7.648400                           14.146466
+1         16.0                                94.527060                                     94.216590                                  110.130927                          223.287747
+2         64.0                               328.335404                                    352.501698                                  369.132122                          788.486973
+3        128.0                               615.110254                                    565.028497                                  643.227744                         1603.035467
+4        256.0                               804.466627                                    879.016905                                  959.734018                         2116.497735
+5        512.0                              1122.246840                                   1113.733155                                 1271.544730                         2967.899989
+6       1024.0                              1242.121212                                   1532.036420                                 1234.044627                         3265.229459
+7       2048.0                              1193.517372                                   1542.060153                                 1336.524151                         3459.768695
+8       4096.0                              1240.706069                                   1528.745474                                 1325.470181                         3411.617352
+9       8192.0                              1252.176178                                   1500.195938                                 1355.913211                         3346.773223
+10     16384.0                              1347.518067                                   1511.335994                                 1150.731772                         3161.505776
+custom, N=16384 K=5376, BF16 vs FP8 linear TFLOP/s:
+  fp8-per-channel: CutlassFP8ScaledMMLinearKernel
+  fp8-per-block: DeepGemmFp8BlockScaledMMKernel
+  nvfp4: FlashInferCuteDslNvFp4LinearKernel
+BF16 vs dispatched FP8 linear kernels:
+    batch_size  torch-bf16 (TFLOP/s (larger is better))  fp8-per-channel (TFLOP/s (larger is better))  fp8-per-block (TFLOP/s (larger is better))  nvfp4 (TFLOP/s (larger is better))
+0          1.0                                 5.446820                                     11.649896                                   14.542752                           21.252846
+1         16.0                                99.947920                                    173.768188                                  211.189982                          355.616932
+2         64.0                               393.281623                                    640.181935                                  704.880056                         1147.106908
+3        128.0                               639.649034                                    859.145134                                 1091.536929                         2249.573744
+4        256.0                              1021.799469                                    997.113525                                 1423.018890                         2761.634896
+5        512.0                              1217.873555                                   1741.459169                                 1696.268104                         3006.890003
+6       1024.0                              1280.185068                                   1800.298598                                 1878.009052                         2982.680122
+7       2048.0                              1372.638775                                   1982.158909                                 1907.287427                         3816.452846
+8       4096.0                              1353.589027                                   2056.446570                                 1899.566162                         3959.032488
+9       8192.0                              1382.569299                                   1981.870263                                 1885.034676                         4025.671772
+10     16384.0                              1396.583984                                   1645.993572                                 2043.932503                         3772.233105
+custom, N=5376 K=8192, BF16 vs FP8 linear TFLOP/s:
+  fp8-per-channel: CutlassFP8ScaledMMLinearKernel
+  fp8-per-block: DeepGemmFp8BlockScaledMMKernel
+  nvfp4: FlashInferCuteDslNvFp4LinearKernel
+BF16 vs dispatched FP8 linear kernels:
+    batch_size  torch-bf16 (TFLOP/s (larger is better))  fp8-per-channel (TFLOP/s (larger is better))  fp8-per-block (TFLOP/s (larger is better))  nvfp4 (TFLOP/s (larger is better))
+0          1.0                                 6.242228                                      7.283925                                    7.069808                           10.201236
+1         16.0                               121.426087                                    110.932469                                  102.628306                          163.511256
+2         64.0                               295.443180                                    426.640454                                  335.115282                          562.017168
+3        128.0                               541.882018                                    702.523598                                  569.096767                         1118.983429
+4        256.0                               989.449137                                    809.330399                                  886.168639                         1916.339968
+5        512.0                              1067.206825                                   1002.627210                                 1176.023476                         3018.979238
+6       1024.0                              1143.273582                                   1502.937957                                 1268.390069                         3335.375305
+7       2048.0                              1153.673397                                   1548.115313                                 1341.030632                         3601.381854
+8       4096.0                              1278.313852                                   1609.909242                                 1371.986520                         3580.444338
+9       8192.0                              1241.390970                                   1573.539206                                 1368.952410                         3590.474014
+10     16384.0                              1284.091945                                   1504.560245                                 1374.190599                         3310.666832
+
+=== Summed across all shapes (TFLOP/s) ===
+  batch_size          torch-bf16     fp8-per-channel       fp8-per-block               nvfp4
+           1               23.58               36.95               40.27               63.96
+          16              424.95              547.77              589.49             1028.16
+          64             1395.51             2043.31             2034.96             3531.82
+         128             2522.33             3219.03             3296.72             6870.22
+         256             3755.63             4324.14             4582.48             9707.05
+         512             4529.67             5604.06             5834.69            12498.06
+        1024             4950.33             6928.55             6435.20            13262.94
+        2048             5122.61             7437.72             6648.56            14799.39
+        4096             5247.92             7438.53             6774.83            15213.84
+        8192             5253.60             7217.26             6998.90            15244.99
+       16384             5433.05             6513.06             6953.56            14142.86
+
+=== Speedup vs torch-bf16 ===
+  batch_size          torch-bf16     fp8-per-channel       fp8-per-block               nvfp4
+           1               1.00x               1.57x               1.71x               2.71x
+          16               1.00x               1.29x               1.39x               2.42x
+          64               1.00x               1.46x               1.46x               2.53x
+         128               1.00x               1.28x               1.31x               2.72x
+         256               1.00x               1.15x               1.22x               2.58x
+         512               1.00x               1.24x               1.29x               2.76x
+        1024               1.00x               1.40x               1.30x               2.68x
+        2048               1.00x               1.45x               1.30x               2.89x
+        4096               1.00x               1.42x               1.29x               2.90x
+        8192               1.00x               1.37x               1.33x               2.90x
+       16384               1.00x               1.20x               1.28x               2.60x
+
+Benchmark finished!
