@@ -1,0 +1,37 @@
+Command: run python /home/HDCharles/repos/vllm/benchmarks/kernels/benchmark_moe_quant.py
+Reserved 1 GPU(s): [5] for command execution
+INFO 07-27 19:01:12 [scheduler.py:242] Chunked prefill is enabled with max_num_batched_tokens=2048.
+INFO 07-27 19:01:12 [vllm.py:1114] Asynchronous scheduling is enabled.
+INFO 07-27 19:01:12 [kernel.py:303] Final IR op priority after setting platform defaults: IrOpPriorityConfig(rms_norm=['native'], fused_add_rms_norm=['native'])
+WARNING: skipping triton-fp8-block — N=2112 or K=2816 not divisible by block_size=128
+MoE: E=128, topk=8, K=2816, N=2112
+Providers: torch-bf16, triton-fp8-channel, cutlass-nvfp4
+WARNING 07-27 19:01:13 [fused_moe.py:1108] Using default MoE config. Performance might be sub-optimal! Config file not found at /home/HDCharles/vllm/lib/python3.12/site-packages/vllm/model_executor/layers/fused_moe/configs/E=128,N=2112,device_name=NVIDIA_B200.json
+WARNING 07-27 19:01:14 [fused_moe.py:1108] Using default MoE config. Performance might be sub-optimal! Config file not found at /home/HDCharles/vllm/lib/python3.12/site-packages/vllm/model_executor/layers/fused_moe/configs/E=128,N=2112,device_name=NVIDIA_B200,dtype=fp8_w8a8.json
+MoE fused experts: BF16 vs FP8 vs NVFP4:
+   batch_size  torch-bf16 (TFLOP/s)  triton-fp8-channel (TFLOP/s)  cutlass-nvfp4 (TFLOP/s)
+0         1.0              2.360701                      1.834860                 0.724968
+1        16.0              9.824987                     15.594604                11.374405
+2        64.0             24.114103                     38.035415                46.511315
+3       128.0             46.465890                     81.285541                91.067808
+4       256.0             92.207626                    153.568808               187.273346
+5       512.0            175.137929                    282.115874               364.998971
+6      1024.0            288.085602                    303.726913               598.518926
+7      2048.0            433.862625                    434.461004               758.752815
+8      4096.0            558.385956                    522.108062               881.095129
+9      8192.0            659.107890                    496.257115               948.790680
+
+=== Speedup vs torch-bf16 ===
+  batch_size            torch-bf16    triton-fp8-channel         cutlass-nvfp4
+           1                 1.00x                 0.78x                 0.31x
+          16                 1.00x                 1.59x                 1.16x
+          64                 1.00x                 1.58x                 1.93x
+         128                 1.00x                 1.75x                 1.96x
+         256                 1.00x                 1.67x                 2.03x
+         512                 1.00x                 1.61x                 2.08x
+        1024                 1.00x                 1.05x                 2.08x
+        2048                 1.00x                 1.00x                 1.75x
+        4096                 1.00x                 0.94x                 1.58x
+        8192                 1.00x                 0.75x                 1.44x
+
+Benchmark finished!
